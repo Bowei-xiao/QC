@@ -1,12 +1,12 @@
 #!/bin/bash
 # Split a PLINK file by chromosome chunks and send 23 jobs (23 chromosomes) and then recombine results
 # Syntax: bash parallel_prune.sh <PLINK_filename> <output_filename>
-# Example: bash parallel_prune.sh 06_duplicated_snps_rm 09_pruned
+# Example: bash parallel_prune.sh 06_duplicated_snps_rm 09_pruned 0.1
 # suggested r^2 be 0.1
 PLINK_filename=$1
 output_filename=$2
 r2=$3
-export PATH=$PATH:/home/Bowei/ADHD_clinical
+export PATH=$PATH:/home/Bowei/ADHD_clinical #Need to change this to the local path the main QC script is running
 # Split files into 23 chunks
 
 for i in {1..23}
