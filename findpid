@@ -1,0 +1,24 @@
+#!/bin/bash
+me='findpid'
+if [ $# -lt 1 ]
+then
+    echo "$me: some arguments are required, a grep expression for filtering processes" >&2
+    exit
+fi
+
+output=$(ps auxww | grep "$*" | grep -v grep | grep -v $0)
+lines=`echo "$output" | wc -l`
+
+if [ $lines -gt 1 ]
+then
+    echo "$me:  there are too many pids matching the expression: \\"$*\\"" >&2
+    echo
+    echo "$output" >&2
+    exit 2
+elif [ -z "$output" ]
+then
+    echo "$me:  there are no processes matching the expression: \\"$*\\"" >&2
+    exit 1
+fi
+
+echo "$output" | awk '{print $2}'
