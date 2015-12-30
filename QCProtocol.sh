@@ -8,12 +8,20 @@ indRate=$2 #Individual missing rate, I normally use 0.03
 snpRate=$3 #SNP missing rate, I normally use 0.05
 
 # We want noPedID.txt to indicate whom we want to throw away
+# If there is no such thing, then just skip this step
 prefix=1
 scriptADS=/hpf/projects/arnold/bowei/ADHD_ClinicalData
 export PATH=$PATH:${scriptADS}
 #get Missingness
 # remove Individuals that we couldn't find pedigree ID
+if [ -e "noPedID.txt" ]
+then
 plink --noweb --bfile ${plinkOri} --remove noPedID.txt --make-bed --out ${prefix}_${plinkOri}_withPID 
+else
+cp ${plinkOri}.fam ${prefix}_${plinkOri}_withPID.fam
+cp ${plinkOri}.bim ${prefix}_${plinkOri}_withPID.bim
+cp ${plinkOri}.bed ${prefix}_${plinkOri}_withPID.bed
+fi
 plink --noweb --bfile ${prefix}_${plinkOri}_withPID --missing --out ${prefix}_${plinkOri}
 #Fix the blank; change delimiter to single blank
 awk '{gsub(" ?","",$1)}1' ${prefix}_${plinkOri}.imiss > ${prefix}_${plinkOri}_blankFix.imiss
