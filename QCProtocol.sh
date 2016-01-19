@@ -24,9 +24,9 @@ cp ${plinkOri}.bed ${prefix}_${plinkOri}_withPID.bed
 fi
 # Firstly removing chromosome 24 and above
 awk '$1 >23{print $2}' ${prefix}_${plinkOri}_withPID.bim > ${prefix}_notUseChr.txt 
-plink --noweb --bfile ${prefix}_${plinkOri}_withPID --remove ${prefix}_notUseChr.txt --make-bed --out ${prefix}_${plinkOri}Chr123
+plink --noweb --bfile ${prefix}_${plinkOri}_withPID --exclude ${prefix}_notUseChr.txt --make-bed --out ${prefix}_${plinkOri}Chr123
 #missing rate check
-plink --noweb --bfile ${prefix}_${plinkOri}_Chr123 --missing --out ${prefix}_${plinkOri}
+plink --noweb --bfile ${prefix}_${plinkOri}Chr123 --missing --out ${prefix}_${plinkOri}
 #Fix the blank; change delimiter to single blank
 awk '{gsub(" ?","",$1)}1' ${prefix}_${plinkOri}.imiss > ${prefix}_${plinkOri}_blankFix.imiss
 awk '{gsub(" ?","",$1)}1' ${prefix}_${plinkOri}.lmiss > ${prefix}_${plinkOri}_blankFix.lmiss
