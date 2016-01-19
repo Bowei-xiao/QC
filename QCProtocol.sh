@@ -80,8 +80,8 @@ plink --noweb --bfile ${prefix_old}_${plinkOri}_sexImpute --exclude ${prefix_old
 prefix_old=$prefix
 prefix=$(( $prefix + 1 ))
 ###prefix=7 pre_old=6
-plink --noweb --bfile ${prefix_old}_${plinkOri}_hetSNPremoved --hardy --out ${plinkOri}NeedCheck_hweSNP.txt 
-
+plink --noweb --bfile ${prefix_old}_${plinkOri}_hetSNPremoved --hardy --out ${prefix}_${plinkOri}_hwe
+awk '$3 == "ALL" && $9 <= 0.0001' ${prefix}_${plinkOri}_hwe | cut -f2 > ${plinkOri}NeedCheck_hweSNP.txt
 # summarize the final result files:
 cp ${prefix}_${plinkOri}_hetSNPremoved.bim ${plinkOri}_afterQC.bim
 cp ${prefix}_${plinkOri}_hetSNPremoved.bed ${plinkOri}_afterQC.bed
