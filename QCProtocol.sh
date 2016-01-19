@@ -2,9 +2,9 @@
 
 #QC script
 # Syntax: bash QCProtocol.sh ${PlinkFileName} 0.03 0.05
-# would assume this is the binary format
+# would assume this is the binary plink format
 plinkOri=$1
-indRate=$2 #Individual missing rate, I normally use 0.03
+indRate=$2 #Individual missing rate, I normally use 0.03 for Ilumina; and 0.05 for Affy6.0
 snpRate=$3 #SNP missing rate, I normally use 0.05
 
 # We want noPedID.txt to indicate whom we want to throw away
@@ -23,10 +23,10 @@ cp ${plinkOri}.bim ${prefix}_${plinkOri}_withPID.bim
 cp ${plinkOri}.bed ${prefix}_${plinkOri}_withPID.bed
 fi
 # Firstly removing chromosome 24 and above
-awk
-
+awk '$1 >23{print $2}' ${prefix}_${plinkOri}_withPID.bim > ${prefix}_notUseChr.txt 
+plink --noweb --bfile ${prefix}_${plinkOri}_withPID --remove ${prefix}_notUseChr.txt --make-bed --out ${prefix}_${plinkOri}Chr123
 #missing rate check
-plink --noweb --bfile ${prefix}_${plinkOri}_withPID --missing --out ${prefix}_${plinkOri}
+plink --noweb --bfile ${prefix}_${plinkOri}_Chr123 --missing --out ${prefix}_${plinkOri}
 #Fix the blank; change delimiter to single blank
 awk '{gsub(" ?","",$1)}1' ${prefix}_${plinkOri}.imiss > ${prefix}_${plinkOri}_blankFix.imiss
 awk '{gsub(" ?","",$1)}1' ${prefix}_${plinkOri}.lmiss > ${prefix}_${plinkOri}_blankFix.lmiss
@@ -34,7 +34,7 @@ awk '{gsub(" ?","",$1)}1' ${prefix}_${plinkOri}.lmiss > ${prefix}_${plinkOri}_bl
 awk -v miss="$indRate" '$6 <= miss' ${prefix}_${plinkOri}_blankFix.imiss | cut -f1,2 > ${prefix}_${plinkOri}IndLowMiss.txt
 prefix_old=$prefix
 prefix=$(( $prefix + 1 ))
-###prefix=2 pre_old=1
+###prefix=2 pre_old=1 
 plink --noweb --bfile ${plinkOri} --keep ${prefix_old}_${plinkOri}IndLowMiss.txt --make-bed --out ${prefix}_${plinkOri}_highMissIndRMV
 # remove SNPs with call rate that are more than pre-set rate
 awk -v miss="$snpRate" '$5 <= miss' ${prefix_old}_${plinkOri}_blankFix.lmiss | cut -f2 > ${prefix}_${plinkOri}_highCallSNP.txt
@@ -58,19 +58,15 @@ plink --noweb --bfile ${prefix_old}_${plinkOri}_commonSNPAfterPrune --het --out 
 plink --noweb --bfile ${prefix_old}_${plinkOri}_commonSNPAfterPrune --chr 23 --make-bed --out ${prefix}_${plinkOri}_chrX
 sed -i 's/^23/1/g' ${prefix}_${plinkOri}_chrX.bim
 plink --noweb --bfile ${prefix}_${plinkOri}_chrX --het --out ${prefix}_${plinkOri}_sexHet
-# Check Heteozygousity and removes individuals that failed it (with plots)
+# Check Heteozygousity and mark individuals that failed it (with plots)
 Rscript ${scriptADS}/1118HetCheck.R ${prefix}_${plinkOri}
 
-# remove people that failed Heteozygousity check
-plink --noweb --bfile ${prefix_old}_${plinkOri}_highMissIndSNPRMV --remove ${prefix}_${plinkOri}_indNeedremove.txt --make-bed --out ${prefix_old}_${plinkOri}_Hetremove 
-# only keep common SNPs (MAF>=0.05) since we don't have a lot of ppl
-plink --noweb --bfile ${prefix_old}_${plinkOri}_Hetremove --maf 0.05 --make-bed --out ${prefix_old}_${plinkOri}_commonHetremove
 # Sex check
 prefix=$(( $prefix + 1 )) #prefix changed to 5, but prefix_old is still 3
 ###prefix=5 pre_old=3
-plink --noweb --bfile ${prefix_old}_${plinkOri}_commonHetremove --check-sex --out ${prefix}_${plinkOri}_sexCheck
+plink --noweb --bfile ${prefix_old}_${plinkOri}_commonSNP --check-sex --out ${prefix}_${plinkOri}_sexCheck
 #impute sex
-plink --noweb --bfile ${prefix_old}_${plinkOri}_commonHetremove --make-bed --impute-sex --out ${prefix}_${plinkOri}_sexImpute
+plink --noweb --bfile ${prefix_old}_${plinkOri}_commonSNP --make-bed --impute-sex --out ${prefix}_${plinkOri}_sexImpute
 
 plink --noweb --bfile ${prefix}_${plinkOri}_sexImpute --check-sex --out ${prefix}_${plinkOri}_sexCheck2
 # Removing heterozygous SNPs in chromosome X:
@@ -80,30 +76,29 @@ prefix=$(( $prefix + 1 ))
 ###prefix=6 pre_old=5
 plink --noweb --bfile ${prefix_old}_${plinkOri}_sexImpute --exclude ${prefix_old}_${plinkOri}_SNPtoRemoveHH --make-bed --out ${prefix}_${plinkOri}_hetSNPremoved
 
-# Hardy-Weinberg Equilibrium
+# Hardy-Weinberg Equilibrium (Mark but do not remove)
 prefix_old=$prefix
 prefix=$(( $prefix + 1 ))
 ###prefix=7 pre_old=6
-plink --noweb --bfile ${prefix_old}_${plinkOri}_hetSNPremoved --hardy --make-bed --out  ${prefix}_${plinkOri}_HWE
+plink --noweb --bfile ${prefix_old}_${plinkOri}_hetSNPremoved --hardy --out ${plinkOri}NeedCheck_hweSNP.txt 
 
 # summarize the final result files:
-cp ${prefix}_${plinkOri}_HWE.bim ${plinkOri}_afterQC.bim
-cp ${prefix}_${plinkOri}_HWE.bed ${plinkOri}_afterQC.bed
-cp ${prefix}_${plinkOri}_HWE.fam ${plinkOri}_afterQC.fam 
+cp ${prefix}_${plinkOri}_hetSNPremoved.bim ${plinkOri}_afterQC.bim
+cp ${prefix}_${plinkOri}_hetSNPremoved.bed ${plinkOri}_afterQC.bed
+cp ${prefix}_${plinkOri}_hetSNPremoved.fam ${plinkOri}_afterQC.fam 
 # recording individuals that were removed in the QC
 # $1+=0 == $1 used to remove header, it's not perfect, can only deal with header strating with Characers not numbers
-awk -v miss="$indRate" $6 > miss && $1 + 0 == $1' 1_${plinkOri}_blankFix.imiss | cut -d' ' -f1,2 > TMP_lowRate.txt
+awk -v miss="$indRate" '$6 > miss && $1 + 0 == $1' 1_${plinkOri}_blankFix.imiss | cut -d' ' -f1,2 > TMP_lowRate.txt
 yes 'Low call Rate' | head -n `wc -l TMP_lowRate.txt | cut -d' ' -f1` > TMP_lowRateReason.txt
-yes 'Failed heteo check' | head -n `wc -l 4_${plinkOri}_indNeedremove.txt | cut -d' ' -f1` > TMP_heteoReason.txt
+cp 4_${plinkOri}_indNeedremove.txt > ${plinkOri}NeedCheck_heteoReason.txt
 paste TMP_lowRate.txt TMP_lowRateReason.txt > TMP_2.txt
-paste 4_${plinkOri}_indNeedremove.txt TMP_heteoReason.txt > TMP_3.txt
 if [ -e "noPedID.txt" ]
 then
 yes 'No pedigree ID found' | head -n `wc -l noPedID.txt | cut -d' ' -f1` > TMP_noPedReason.txt
 paste noPedID.txt TMP_noPedReason.txt > TMP_1.txt
-cat TMP_1.txt TMP_2.txt TMP_3.txt > ${plinkOri}_indRemovedInQC.txt
+cat TMP_1.txt TMP_2.txt > ${plinkOri}_indRemovedInQC.txt
 else 
-cat TMP_2.txt TMP_3.txt > ${plinkOri}_indRemovedInQC.txt
+mv TMP_2.txt > ${plinkOri}_indRemovedInQC.txt
 fi
 rm TMP_*
 
