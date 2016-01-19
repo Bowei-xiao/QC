@@ -87,7 +87,7 @@ cp ${prefix}_${plinkOri}_hetSNPremoved.fam ${plinkOri}_afterQC.fam
 # $1+=0 == $1 used to remove header, it's not perfect, can only deal with header strating with Characers not numbers
 awk -v miss="$indRate" '$6 > miss && $1 + 0 == $1' 1_${plinkOri}_blankFix.imiss | cut -d' ' -f1,2 > TMP_lowRate.txt
 yes 'Low call Rate' | head -n `wc -l TMP_lowRate.txt | cut -d' ' -f1` > TMP_lowRateReason.txt
-cp 4_${plinkOri}_indNeedremove.txt > ${plinkOri}NeedCheck_heteoReason.txt
+cp 4_${plinkOri}_indNeedremove.txt ${plinkOri}NeedCheck_heteoReason.txt
 paste TMP_lowRate.txt TMP_lowRateReason.txt > TMP_2.txt
 if [ -e "noPedID.txt" ]
 then
