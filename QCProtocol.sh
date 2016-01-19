@@ -22,6 +22,10 @@ cp ${plinkOri}.fam ${prefix}_${plinkOri}_withPID.fam
 cp ${plinkOri}.bim ${prefix}_${plinkOri}_withPID.bim
 cp ${plinkOri}.bed ${prefix}_${plinkOri}_withPID.bed
 fi
+# Firstly removing chromosome 24 and above
+awk
+
+#missing rate check
 plink --noweb --bfile ${prefix}_${plinkOri}_withPID --missing --out ${prefix}_${plinkOri}
 #Fix the blank; change delimiter to single blank
 awk '{gsub(" ?","",$1)}1' ${prefix}_${plinkOri}.imiss > ${prefix}_${plinkOri}_blankFix.imiss
@@ -56,6 +60,7 @@ sed -i 's/^23/1/g' ${prefix}_${plinkOri}_chrX.bim
 plink --noweb --bfile ${prefix}_${plinkOri}_chrX --het --out ${prefix}_${plinkOri}_sexHet
 # Check Heteozygousity and removes individuals that failed it (with plots)
 Rscript ${scriptADS}/1118HetCheck.R ${prefix}_${plinkOri}
+
 # remove people that failed Heteozygousity check
 plink --noweb --bfile ${prefix_old}_${plinkOri}_highMissIndSNPRMV --remove ${prefix}_${plinkOri}_indNeedremove.txt --make-bed --out ${prefix_old}_${plinkOri}_Hetremove 
 # only keep common SNPs (MAF>=0.05) since we don't have a lot of ppl
