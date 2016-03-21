@@ -117,7 +117,7 @@ cat TMP_1.txt TMP_2.txt TMP_3.txt TMP_4.txt> ${plinkOri}_SNPMarkedInQC.txt
 
 
 rm TMP_*
-mkdir ${plinkOri})intermediateSteps
-mv [1-7]_* > ${plinkOri})intermediateSteps
+mkdir ${plinkOri} intermediateSteps
+mv [1-7]_* > ${plinkOri} intermediateSteps
 
 
