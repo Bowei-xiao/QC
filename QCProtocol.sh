@@ -6,14 +6,11 @@
 plinkOri=$1
 indRate=$2 #Individual missing rate, I normally use 0.03 for Ilumina; and 0.05 for Affy6.0
 snpRate=$3 #SNP missing rate, I normally use 0.05
-
+prefix=1
 # We want noPedID.txt to indicate whom we want to throw away
 # If there is no such thing, then just skip this step
-prefix=1
-scriptADS=/hpf/projects/arnold/bowei/ADHD_ClinicalData
-export PATH=$PATH:${scriptADS}
-#get Missingness
 # remove Individuals that we couldn't find pedigree ID
+# It will looks for files noPedID.txt (should be in usual plink two columns format)
 if [ -e "noPedID.txt" ]
 then
 plink --noweb --bfile ${plinkOri} --remove noPedID.txt --make-bed --out ${prefix}_${plinkOri}_withPID 
@@ -23,8 +20,9 @@ cp ${plinkOri}.bim ${prefix}_${plinkOri}_withPID.bim
 cp ${plinkOri}.bed ${prefix}_${plinkOri}_withPID.bed
 fi
 # Firstly removing chromosome 24 and above
-awk '$1 >23{print $2}' ${prefix}_${plinkOri}_withPID.bim > ${prefix}_notUseChr.txt 
-plink --noweb --bfile ${prefix}_${plinkOri}_withPID --exclude ${prefix}_notUseChr.txt --make-bed --out ${prefix}_${plinkOri}Chr123
+awk '$1 >23 && $1!="X"{print $2}' ${prefix}_${plinkOri}_withPID.bim > ${prefix}_${plinkOri}_notUseChr.txt 
+plink --noweb --bfile ${prefix}_${plinkOri}_withPID --exclude ${prefix}_${plinkOri}_notUseChr.txt --make-bed --out ${prefix}_${plinkOri}Chr123
+
 #missing rate check
 plink --noweb --bfile ${prefix}_${plinkOri}Chr123 --missing --out ${prefix}_${plinkOri}
 #Fix the blank; change delimiter to single blank
@@ -44,10 +42,16 @@ prefix=$(( $prefix + 1 ))
 plink --noweb --bfile ${prefix_old}_${plinkOri}_highMissIndRMV --extract ${prefix_old}_${plinkOri}_highCallSNP.txt --make-bed --out ${prefix}_${plinkOri}_highMissIndSNPRMV
 
 #Heterozygosity check
+#First do maf filter + prune the data
 plink --noweb --bfile ${prefix}_${plinkOri}_highMissIndSNPRMV --maf 0.05 --make-bed --out ${prefix}_${plinkOri}_commonSNP
-cp ${scriptADS}/waiton .
-cp ${scriptADS}/findpid .
+
+# This is an old way to do it. Only use this part with plink1.07. We could directly prune it with plink 1.9
+if false; then
 bash ${scriptADS}/parallel_prune.sh  ${prefix}_${plinkOri}_commonSNP ${prefix}_${plinkOri}_commonSNPAfterPrune 0.2
+fi
+# For plink 1.9; we can directly use this
+plink --noweb --bfile ${prefix}_${plinkOri}_commonSNP --indep-pairwise 1500 100 ${r2} --out ${prefix}_${plinkOri}_commonSNPAfterPrune 
+plink --noweb --bfile ${prefix}_${plinkOri}_commonSNP --extract ${prefix}_${plinkOri}_commonSNPAfterPrune.prune.in --make-bed --out ${prefix}_${plinkOri}_commonSNPAfterPrune
 
 # Calculate heterozygosity for autosomal and X separately
 prefix_old=$prefix
@@ -78,26 +82,42 @@ plink --noweb --bfile ${prefix_old}_${plinkOri}_sexImpute --exclude ${prefix_old
 
 # Hardy-Weinberg Equilibrium (Mark SNPs but do not remove)
 plink --noweb --bfile ${prefix}_${plinkOri}_hetSNPremoved --hardy --out ${prefix}_${plinkOri}_hwe
-awk '$3 == "ALL" && $9 <= 0.0001{print $2}' ${prefix}_${plinkOri}_hwe.hwe > ${plinkOri}NeedCheck_hweSNP.txt
+
 # summarize the final result files:
 cp ${prefix}_${plinkOri}_hetSNPremoved.bim ${plinkOri}_afterQC.bim
 cp ${prefix}_${plinkOri}_hetSNPremoved.bed ${plinkOri}_afterQC.bed
 cp ${prefix}_${plinkOri}_hetSNPremoved.fam ${plinkOri}_afterQC.fam 
-# recording individuals that were removed in the QC
-# $1+=0 == $1 used to remove header, it's not perfect, can only deal with header strating with Characers not numbers
+# recording individuals that were removed or marked in the QC
+# $1+=0 == $1 used to remove header, it's not perfect, can only deal with header strating with Characers not numbers(But ours is fine since it's "FID")
 awk -v miss="$indRate" '$6 > miss && $1 + 0 == $1' 1_${plinkOri}_blankFix.imiss | cut -d' ' -f1,2 > TMP_lowRate.txt
-yes 'Low call Rate' | head -n `wc -l TMP_lowRate.txt | cut -d' ' -f1` > TMP_lowRateReason.txt
-cp 4_${plinkOri}_indNeedremove.txt ${plinkOri}NeedCheck_heteoReason.txt
+yes 'Low call Rate(Removed)' | head -n `wc -l TMP_lowRate.txt | cut -d' ' -f1` > TMP_lowRateReason.txt
+yes 'Failed Heterozygosity check(not Removed)' | head -n `wc -l 4_${plinkOri}_indNeedremove.txt | cut -d' ' -f1` > TMP_FailedHetReason.txt
 paste TMP_lowRate.txt TMP_lowRateReason.txt > TMP_2.txt
+paste 4_${plinkOri}_indNeedremove.txt TMP_FailedHetReason.txt > TMP_3.txt
 if [ -e "noPedID.txt" ]
 then
 yes 'No pedigree ID found' | head -n `wc -l noPedID.txt | cut -d' ' -f1` > TMP_noPedReason.txt
 paste noPedID.txt TMP_noPedReason.txt > TMP_1.txt
-cat TMP_1.txt TMP_2.txt > ${plinkOri}_indRemovedInQC.txt
+cat TMP_1.txt TMP_2.txt TMP_3.txt > ${plinkOri}_indMarkedInQC.txt
 else 
-mv TMP_2.txt > ${plinkOri}_indRemovedInQC.txt
+cat TMP_2.txt TMP_3.txt > ${plinkOri}_indMarkedInQC.txt
 fi
-rm TMP_*
+# Recording SNPs that were removed/marked in the QC(rare SNPs not recorded)
+yes 'Not on Chr1-23(Removed)' | head -n `wc -l 1_${plinkOri}_notUseChr.txt | cut -d' ' -f1` > TMP_SNPnotON.txt
+paste ${prefix}_notUseChr.txt TMP_SNPnotON.txt > TMP_SNP1.txt
+awk -v miss="$snpRate" '$5 > miss && $1 + 0 == $1' 1_${plinkOri}_blankFix.lmiss | cut -d' ' -f2 > TMP_SNPlowRate.txt
+yes 'Low call Rate(Removed)' | head -n `wc -l TMP_SNPlowRate.txt | cut -d' ' -f1` > TMP_SNPlowRateReason.txt
+paste TMP_SNPlowRate.txt TMP_SNPlowRateReason.txt > TMP_SNP2.txt
+yes 'Heterozygous SNPs on ChrX for Male(Removed)' | head -n `wc -l 5_${plinkOri}_SNPtoRemoveHH | cut -d' ' -f1` > TMP_SNPHetReason.txt
+paste 5_${plinkOri}_SNPtoRemoveHH TMP_SNPHetReason.txt > TMP_SNP3.txt
+awk '$3 == "ALL" && $9 <= 0.0001{print $2}' ${prefix}_${plinkOri}_hwe.hwe >TMP_hweSNP.txt
+yes 'Failed HWE(Not Removed)' | head -n `wc -l TMP_hweSNP.txt | cut -d' ' -f1` > TMP_SNPhweReason.txt
+paste TMP_hweSNP.txt TMP_SNPhweReason.txt > TMP_SNP4.txt
+cat TMP_1.txt TMP_2.txt TMP_3.txt TMP_4.txt> ${plinkOri}_SNPMarkedInQC.txt
 
+
+rm TMP_*
+mkdir ${plinkOri})intermediateSteps
+mv [1-7]_* > ${plinkOri})intermediateSteps
 
 
